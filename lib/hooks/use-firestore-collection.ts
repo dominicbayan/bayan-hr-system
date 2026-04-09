@@ -27,6 +27,10 @@ export function useFirestoreCollection<T>(collectionName: string, constraints: S
     error: firebaseConfigured && db ? null : "Firebase is not configured.",
   });
   const stableKey = useMemo(() => JSON.stringify(constraints), [constraints]);
+  const stableConstraints = useMemo<SupportedConstraint[]>(
+    () => JSON.parse(stableKey) as SupportedConstraint[],
+    [stableKey],
+  );
 
   useEffect(() => {
     if (!firebaseConfigured || !db) {
@@ -34,7 +38,7 @@ export function useFirestoreCollection<T>(collectionName: string, constraints: S
     }
 
     const collectionRef = collection(db, collectionName);
-    const queryConstraints = constraints.map((constraint) => {
+    const queryConstraints = stableConstraints.map((constraint) => {
       if (constraint.kind === "orderBy") {
         return orderBy(constraint.field, constraint.direction ?? "asc");
       }
@@ -59,7 +63,7 @@ export function useFirestoreCollection<T>(collectionName: string, constraints: S
     );
 
     return unsubscribe;
-  }, [collectionName, stableKey, constraints]);
+  }, [collectionName, stableConstraints]);
 
   return state;
 }
