@@ -1,95 +1,73 @@
-import type { Employee, LeaveRequest, LeaveType } from "@/lib/types";
-import { calculateDateRangeDays } from "@/lib/utils";
-
-const annualEntitlement = 30;
+﻿import type { LeaveBalance, LeaveRequest, LeaveType } from "@/lib/types";
 
 export const leaveTypeLabels: Record<LeaveType, string> = {
   annual: "Annual Leave",
   sick: "Sick Leave",
   maternity: "Maternity Leave",
   paternity: "Paternity Leave",
+  hajj: "Hajj Leave",
   emergency: "Emergency Leave",
-  unpaid: "Unpaid Leave",
-  pilgrimage: "Hajj / Pilgrimage Leave",
   bereavement: "Bereavement Leave",
+  unpaid: "Unpaid Leave",
 };
 
-export function getLeaveLimit(type: LeaveType) {
-  switch (type) {
-    case "annual":
-      return 30;
-    case "sick":
-      return 70;
-    case "maternity":
-      return 50;
-    case "paternity":
-      return 7;
-    case "emergency":
-      return 6;
-    case "pilgrimage":
-      return 15;
-    case "bereavement":
-      return 3;
-    case "unpaid":
-      return Number.POSITIVE_INFINITY;
+export const leaveTypeDescriptions: Record<LeaveType, string> = {
+  annual: "30 days/year after 6 months of service (Art. 61)",
+  sick: "Up to 10 weeks/year with medical certificate (Art. 66)",
+  maternity: "50 calendar days fully paid (Art. 83)",
+  paternity: "7 calendar days fully paid within 7 days of birth",
+  hajj: "15 calendar days once per employment after 1 year (Art. 65)",
+  emergency: "6 calendar days/year for urgent circumstances (Art. 67)",
+  bereavement: "3 calendar days for first-degree relatives (Art. 67)",
+  unpaid: "Employer discretion, explicit approval required",
+};
+
+export const leaveTypeBadgeTone: Record<LeaveType, "default" | "green" | "yellow" | "orange" | "red"> = {
+  annual: "default",
+  sick: "yellow",
+  maternity: "red",
+  paternity: "green",
+  hajj: "orange",
+  emergency: "orange",
+  bereavement: "yellow",
+  unpaid: "red",
+};
+
+export function getBalanceSummary(balance: LeaveBalance | null) {
+  if (!balance) {
+    return {
+      annual: "30/30",
+      sick: "70/70",
+      emergency: "6/6",
+    };
   }
+
+  return {
+    annual: `${balance.annual.remaining ?? 30}/${balance.annual.entitled}`,
+    sick: `${(balance.sick.remaining ?? 70)}/${balance.sick.entitled}`,
+    emergency: `${(balance.emergency.remaining ?? 6)}/${balance.emergency.entitled}`,
+  };
 }
 
-export function getAnnualBalance(employee: Employee, leaveRequests: LeaveRequest[]) {
-  const employeeRequests = leaveRequests.filter((request) => request.employeeId === employee.id && request.type === "annual");
-  const used = employeeRequests.filter((request) => request.status === "approved").reduce((sum, request) => sum + request.days, 0);
-  const pending = employeeRequests.filter((request) => request.status === "pending").reduce((sum, request) => sum + request.days, 0);
-  const remaining = Math.max(annualEntitlement - used - pending, 0);
-
-  return { entitlement: annualEntitlement, used, pending, remaining };
+export function getLeaveBucket(balance: LeaveBalance, leaveType: LeaveType) {
+  if (leaveType === "unpaid") {
+    return { used: balance.unpaid.used, entitled: 0, remaining: 0, pending: 0 };
+  }
+  if (leaveType === "hajj") {
+    return { used: balance.hajj.used, entitled: balance.hajj.entitled, remaining: balance.hajj.entitled, pending: 0 };
+  }
+  if (leaveType === "maternity") {
+    return { used: balance.maternity.used, entitled: balance.maternity.entitled, remaining: balance.maternity.entitled - balance.maternity.used, pending: 0 };
+  }
+  if (leaveType === "paternity") {
+    return { used: balance.paternity.used, entitled: balance.paternity.entitled, remaining: balance.paternity.entitled - balance.paternity.used, pending: 0 };
+  }
+  if (leaveType === "bereavement") {
+    return { used: balance.bereavement.used, entitled: 0, remaining: 0, pending: 0 };
+  }
+  return balance[leaveType];
 }
 
-export function validateLeaveRequest(params: {
-  employee: Employee | undefined;
-  leaveType: LeaveType;
-  startDate: string;
-  endDate: string;
-  days: number;
-  leaveRequests: LeaveRequest[];
-  medicalCertificateRequired: boolean;
-}) {
-  const { employee, leaveType, startDate, endDate, days, leaveRequests, medicalCertificateRequired } = params;
-
-  if (!employee) {
-    return "Please select an employee.";
-  }
-
-  if (!startDate || !endDate) {
-    return "Start and end date are required.";
-  }
-
-  if (days !== calculateDateRangeDays(startDate, endDate) || days <= 0) {
-    return "Leave days must match the selected dates.";
-  }
-
-  const limit = getLeaveLimit(leaveType);
-  const approvedDays = leaveRequests
-    .filter((request) => request.employeeId === employee.id && request.type === leaveType && request.status !== "rejected")
-    .reduce((sum, request) => sum + request.days, 0);
-
-  if (leaveType === "annual") {
-    const serviceDays = calculateDateRangeDays(employee.joinDate, new Date().toISOString().slice(0, 10));
-    if (serviceDays < 365) {
-      return "Annual leave is available after one year of service.";
-    }
-  }
-
-  if (leaveType === "pilgrimage" && approvedDays > 0) {
-    return "Pilgrimage leave can only be granted once per employment.";
-  }
-
-  if (leaveType === "sick" && !medicalCertificateRequired) {
-    return "Medical certificate confirmation is required for sick leave.";
-  }
-
-  if (approvedDays + days > limit) {
-    return `This request exceeds the allowed ${leaveTypeLabels[leaveType].toLowerCase()} limit.`;
-  }
-
-  return null;
+export function requestCanBeCancelled(request: LeaveRequest) {
+  return request.status === "approved" && new Date(request.startDate) > new Date();
 }

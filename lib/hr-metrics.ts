@@ -1,12 +1,11 @@
-import type { AttendanceRecord, Employee, LeaveRequest, VisaRecord } from "@/lib/types";
-import { getEmployeeDocumentStatuses } from "@/lib/document-utils";
-import { getAnnualBalance } from "@/lib/leave-policy";
+import type { Employee, EmployeeDocument, LeaveRequest } from "@/lib/types";
+import { getEmployeeDocumentHealth } from "@/lib/document-center";
 import { isDateActive } from "@/lib/utils";
 
 export function getDashboardMetrics(
   employees: Employee[],
   leaveRequests: LeaveRequest[],
-  _visaRecords: VisaRecord[] = [],
+  documents: EmployeeDocument[] = [],
 ) {
   const omanis = employees.filter((employee) => employee.nationality === "Omani").length;
   const expats = employees.filter((employee) => employee.type === "Expat").length;
@@ -16,9 +15,36 @@ export function getDashboardMetrics(
   ).length;
   const pendingApprovals = leaveRequests.filter((request) => request.status === "pending").length;
 
-  const documentStatuses = employees.flatMap((employee) => getEmployeeDocumentStatuses(employee));
-  const expiring30 = documentStatuses.filter((status) => status === "expired" || status === "30").length;
-  const expiring90 = documentStatuses.filter((status) => status === "90").length + expiring30;
+  const latestDocumentsByEmployee = new Map<string, Map<string, EmployeeDocument>>();
+  documents.forEach((document) => {
+    const employeeMap = latestDocumentsByEmployee.get(document.employeeId) ?? new Map<string, EmployeeDocument>();
+    const current = employeeMap.get(document.category);
+    if (!current || current.uploadedAt < document.uploadedAt) {
+      employeeMap.set(document.category, document);
+    }
+    latestDocumentsByEmployee.set(document.employeeId, employeeMap);
+  });
+
+  const latestDocuments = Array.from(latestDocumentsByEmployee.values()).flatMap((employeeMap) =>
+    Array.from(employeeMap.values()),
+  );
+  const expiring30 = latestDocuments.filter(
+    (document) => document.status === "expired" || (document.status === "expiring_soon" && document.expiryDate),
+  ).filter((document) => {
+    const remaining = new Date(document.expiryDate).getTime() - new Date().getTime();
+    return remaining <= 30 * 24 * 60 * 60 * 1000;
+  }).length;
+  const expiring90 = latestDocuments.filter((document) => {
+    const remaining = new Date(document.expiryDate).getTime() - new Date().getTime();
+    return remaining <= 90 * 24 * 60 * 60 * 1000;
+  }).length;
+
+  const employeeHealth = new Map(
+    employees.map((employee) => [
+      employee.id,
+      getEmployeeDocumentHealth(employee, Array.from(latestDocumentsByEmployee.get(employee.id)?.values() ?? [])),
+    ]),
+  );
 
   return {
     headcount: employees.length,
@@ -29,26 +55,6 @@ export function getDashboardMetrics(
     pendingApprovals,
     expiring30,
     expiring90,
+    employeeHealth,
   };
-}
-
-export function buildAttendanceSummary(records: AttendanceRecord[], employeeId: string) {
-  return records
-    .filter((record) => record.employeeId === employeeId)
-    .reduce(
-      (summary, record) => ({
-        present: summary.present + record.present,
-        absent: summary.absent + record.absent,
-        leaveDays: summary.leaveDays + record.leaveDays,
-        otHours: summary.otHours + record.otHours,
-      }),
-      { present: 0, absent: 0, leaveDays: 0, otHours: 0 },
-    );
-}
-
-export function buildLeaveBalances(employees: Employee[], leaveRequests: LeaveRequest[]) {
-  return employees.map((employee) => ({
-    employee,
-    ...getAnnualBalance(employee, leaveRequests),
-  }));
 }

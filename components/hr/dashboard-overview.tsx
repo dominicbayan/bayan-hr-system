@@ -6,9 +6,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Spinner } from "@/components/ui/spinner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useEmployees, useLeaveRequests, useVisaRecords } from "@/lib/hooks";
+import { useAllEmployeeDocuments, useEmployees, useLeaveRequests } from "@/lib/hooks";
 import { getDashboardMetrics } from "@/lib/hr-metrics";
-import { getDocumentStatus } from "@/lib/document-utils";
 import type { EmployeeType } from "@/lib/types";
 
 const checklistItems = [
@@ -21,20 +20,24 @@ const checklistItems = [
 
 const employeeTypes: EmployeeType[] = ["Management", "Omani", "Expat", "Other", "Household"];
 
-export function DashboardOverview() {
+export function DashboardOverview({
+  onOpenPendingLeave,
+}: {
+  onOpenPendingLeave?: () => void;
+}) {
   const { data: employees, loading: employeesLoading, error: employeesError } = useEmployees();
-  const { data: leaveRequests, loading: leaveLoading, error: leaveError } = useLeaveRequests();
-  const { data: visaRecords, loading: visaLoading } = useVisaRecords();
+  const { requests: leaveRequests, loading: leaveLoading, error: leaveError } = useLeaveRequests();
+  const { data: documents, loading: documentsLoading, error: documentsError } = useAllEmployeeDocuments();
   const [checkedItems, setCheckedItems] = useState<string[]>([]);
 
-  const metrics = useMemo(() => getDashboardMetrics(employees, leaveRequests, visaRecords), [employees, leaveRequests, visaRecords]);
+  const metrics = useMemo(() => getDashboardMetrics(employees, leaveRequests, documents), [employees, leaveRequests, documents]);
 
-  if (employeesLoading || leaveLoading || visaLoading) {
+  if (employeesLoading || leaveLoading || documentsLoading) {
     return <Spinner />;
   }
 
-  if (employeesError || leaveError) {
-    return <EmptyState title="Unable to load dashboard" description={employeesError ?? leaveError ?? "Please check Firebase permissions and config."} />;
+  if (employeesError || leaveError || documentsError) {
+    return <EmptyState title="Unable to load dashboard" description={employeesError ?? leaveError ?? documentsError ?? "Please check Firebase permissions and config."} />;
   }
 
   if (!employees.length) {
@@ -55,11 +58,11 @@ export function DashboardOverview() {
           ["Expats", String(metrics.expats)],
           ["Omanisation %", `${metrics.omanisation}%`],
           ["Employees On Leave", String(metrics.activeLeave)],
-          ["Pending Leave Approvals", String(metrics.pendingApprovals)],
+          ["Pending Leave Requests", String(metrics.pendingApprovals)],
           ["Documents Expiring <= 30 days", String(metrics.expiring30)],
           ["Documents Expiring <= 90 days", String(metrics.expiring90)],
         ].map(([label, value]) => (
-          <Card key={label}>
+          <Card key={label} className={label === "Pending Leave Requests" ? "cursor-pointer transition hover:border-teal-500" : undefined} onClick={label === "Pending Leave Requests" ? onOpenPendingLeave : undefined}>
             <CardHeader className="pb-3">
               <p className="text-sm text-slate-500">{label}</p>
               <CardTitle className="text-3xl">{value}</CardTitle>
@@ -124,11 +127,11 @@ export function DashboardOverview() {
         <CardContent>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {employees.slice(0, 6).map((employee) => {
-              const passportState = getDocumentStatus(employee.passportExpiry);
+              const passportState = metrics.employeeHealth.get(employee.id)?.label ?? "No documents";
               return (
                 <div key={employee.id} className="rounded-xl border p-4">
                   <p className="font-medium">{employee.name}</p>
-                  <p className="text-sm text-slate-500">{employee.employeeId} · {employee.position || "Position not set"}</p>
+                  <p className="text-sm text-slate-500">{employee.employeeId} | {employee.position || "Position not set"}</p>
                   <p className="mt-2 text-sm">Passport status: {passportState}</p>
                 </div>
               );

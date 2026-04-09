@@ -8,7 +8,7 @@ export type LeaveType =
   | "paternity"
   | "emergency"
   | "unpaid"
-  | "pilgrimage"
+  | "hajj"
   | "bereavement";
 
 export interface Employee {
@@ -23,6 +23,8 @@ export interface Employee {
   department: string;
   joinDate: string;
   status: EmployeeStatus;
+  gender?: "male" | "female";
+  religion?: "muslim" | "non_muslim";
   civilId?: string;
   civilIdExpiry?: string;
   passportNumber?: string;
@@ -40,62 +42,82 @@ export interface LeaveRequest {
   id: string;
   employeeId: string;
   employeeName: string;
-  type: LeaveType;
+  employeeType: string;
+  leaveType: LeaveType;
   startDate: string;
   endDate: string;
-  days: number;
-  status: "pending" | "approved" | "rejected";
+  calendarDays: number;
+  workingDays: number;
+  status: "pending" | "approved" | "rejected" | "cancelled";
   reason: string;
+  medicalCert: boolean;
+  rejectedReason: string;
   createdAt: string;
   approvedBy?: string;
-  medicalCertificateRequired?: boolean;
+  approvedAt?: string;
+  leaveYear: number;
+  childReference?: string;
+  birthDate?: string;
+  bereavementRelation?: "spouse" | "parent" | "child" | "sibling";
+  hajjConfirmation?: boolean;
 }
 
-export interface VisaRecord {
+export interface LeaveBalanceBucket {
+  entitled: number;
+  used: number;
+  pending?: number;
+  remaining?: number;
+  taken?: boolean;
+  everTaken?: boolean;
+}
+
+export interface LeaveBalance {
   id: string;
   employeeId: string;
-  employeeName: string;
-  nationality: NationalityType;
-  passportNumber: string;
-  passportExpiry: string;
-  visaType: string;
-  visaNumber: string;
+  year: number;
+  annual: LeaveBalanceBucket;
+  sick: LeaveBalanceBucket;
+  emergency: LeaveBalanceBucket;
+  maternity: LeaveBalanceBucket;
+  paternity: LeaveBalanceBucket;
+  bereavement: LeaveBalanceBucket;
+  unpaid: { used: number };
+  hajj: LeaveBalanceBucket;
+}
+
+export type DocumentCategory =
+  | "civil_id"
+  | "passport"
+  | "residence_permit"
+  | "work_permit"
+  | "labor_card"
+  | "visa"
+  | "medical_fitness"
+  | "police_clearance"
+  | "education_cert"
+  | "employment_contract"
+  | "other";
+
+export type EmployeeDocumentStatus = "valid" | "expired" | "expiring_soon" | "pending_upload";
+
+export interface EmployeeDocument {
+  id: string;
+  employeeId: string;
+  category: DocumentCategory;
+  name: string;
+  documentNumber: string;
   issueDate: string;
   expiryDate: string;
-  status: "active" | "expired" | "pending_renewal" | "cancelled";
-  residencePermitExpiry?: string;
-  workPermitExpiry?: string;
-  laborCardExpiry?: string;
-  notes?: string;
-}
-
-export interface AttendanceRecord {
-  id: string;
-  employeeId: string;
-  employeeName: string;
-  year: number;
-  month: number;
-  present: number;
-  absent: number;
-  leaveDays: number;
-  otHours: number;
-}
-
-export interface OnboardingTask {
-  label: string;
-  completed: boolean;
-}
-
-export interface OnboardingRecord {
-  id: string;
-  employeeId: string;
-  employeeName: string;
-  startDate: string;
-  department: string;
-  manager: string;
-  progress: number;
-  tasks: OnboardingTask[];
-  notes?: string;
+  issuingAuthority: string;
+  issuingCountry: string;
+  notes: string;
+  fileUrl: string;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  uploadedAt: string;
+  uploadedBy: string;
+  status: EmployeeDocumentStatus;
 }
 
 export interface HookState<T> {
@@ -110,6 +132,4 @@ export type HrSection =
   | "documents"
   | "leave-management"
   | "leave-request"
-  | "attendance"
-  | "onboarding"
   | "settings";

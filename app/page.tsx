@@ -3,12 +3,10 @@
 import { Menu, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { AttendanceSection } from "@/components/hr/attendance";
 import { DashboardOverview } from "@/components/hr/dashboard-overview";
 import { EmployeeManagement } from "@/components/hr/employee-management";
 import { LeaveManagement } from "@/components/hr/leave-management";
 import { LeaveRequestForm } from "@/components/hr/leave-request-form";
-import { OnboardingSection } from "@/components/hr/onboarding-section";
 import { SettingsSection } from "@/components/hr/settings-section";
 import { Sidebar } from "@/components/hr/sidebar";
 import { IDDocumentTracker } from "@/components/hr/visa-management";
@@ -23,7 +21,7 @@ export default function HomePage() {
   const content = useMemo(() => {
     switch (activeSection) {
       case "dashboard":
-        return <DashboardOverview />;
+        return <DashboardOverview onOpenPendingLeave={() => setActiveSection("leave-management")} />;
       case "employees":
         return <EmployeeManagement />;
       case "documents":
@@ -32,10 +30,6 @@ export default function HomePage() {
         return <LeaveManagement />;
       case "leave-request":
         return <LeaveRequestForm />;
-      case "attendance":
-        return <AttendanceSection />;
-      case "onboarding":
-        return <OnboardingSection />;
       case "settings":
         return <SettingsSection />;
       default:

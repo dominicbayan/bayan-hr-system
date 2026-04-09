@@ -2,19 +2,19 @@
 
 import {
   Calendar,
-  CalendarDays,
   ClipboardList,
   LayoutDashboard,
   Settings,
   ShieldCheck,
-  UserPlus,
   Users,
   LogOut,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { useAuth } from "@/context/AuthContext";
+import { useLeaveRequests } from "@/lib/hooks";
 import type { HrSection } from "@/lib/types";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 const navItems: Array<{ key: HrSection; label: string; icon: React.ComponentType<{ className?: string }> }> = [
@@ -23,8 +23,6 @@ const navItems: Array<{ key: HrSection; label: string; icon: React.ComponentType
   { key: "documents", label: "ID & Documents", icon: ShieldCheck },
   { key: "leave-management", label: "Leave Management", icon: Calendar },
   { key: "leave-request", label: "Leave Request", icon: ClipboardList },
-  { key: "attendance", label: "Attendance", icon: CalendarDays },
-  { key: "onboarding", label: "Onboarding", icon: UserPlus },
   { key: "settings", label: "Settings", icon: Settings },
 ];
 
@@ -36,6 +34,8 @@ export function Sidebar({
   onSelect: (section: HrSection) => void;
 }) {
   const { user, signOutUser } = useAuth();
+  const { requests } = useLeaveRequests();
+  const pendingCount = requests.filter((request) => request.status === "pending").length;
 
   return (
     <aside className="flex h-full flex-col border-r bg-white dark:bg-slate-950">
@@ -61,7 +61,12 @@ export function Sidebar({
               }`}
             >
               <Icon className="h-4 w-4" />
-              {item.label}
+              <span className="flex items-center gap-2">
+                <span>{item.label}</span>
+                {item.key === "leave-management" && pendingCount > 0 ? (
+                  <Badge variant="red" className="px-2 py-0.5">{pendingCount}</Badge>
+                ) : null}
+              </span>
             </button>
           );
         })}
